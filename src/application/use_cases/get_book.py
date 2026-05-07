@@ -13,25 +13,23 @@ from __future__ import annotations
 from src.application.dtos.book_dtos import BookOutputDTO, GetBookInputDTO
 from src.application.mappers.book_mapper import BookMapper
 from src.domain.exceptions.domain_exceptions import BookNotFoundError
+from src.domain.repositories.author_repository import AuthorRepository
 from src.domain.repositories.book_repository import BookRepository
 
 
 class GetBookUseCase:
     """Retrieve a single book by its unique ID."""
 
-    def __init__(self, book_repository: BookRepository) -> None:
+    def __init__(
+        self,
+        book_repository: BookRepository,
+        author_repository: AuthorRepository,
+    ) -> None:
         self._book_repository = book_repository
+        self._author_repository = author_repository
 
     async def execute(self, dto: GetBookInputDTO) -> BookOutputDTO:
         """
-        Execute the use case.
-
-        Args:
-            dto: GetBookInputDTO with the target book_id.
-
-        Returns:
-            BookOutputDTO for the found book.
-
         Raises:
             BookNotFoundError: if no book with the given ID exists.
         """
@@ -39,4 +37,5 @@ class GetBookUseCase:
         if book is None:
             raise BookNotFoundError(dto.book_id)
 
-        return BookMapper.to_output_dto(book)
+        authors = await self._author_repository.list_by_ids(book.author_ids)
+        return BookMapper.to_output_dto(book, authors)

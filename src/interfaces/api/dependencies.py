@@ -22,12 +22,21 @@ from typing import Annotated
 from fastapi import Depends
 
 from src.application.use_cases.add_book import AddBookUseCase
+from src.application.use_cases.create_author import CreateAuthorUseCase
+from src.application.use_cases.delete_author import DeleteAuthorUseCase
 from src.application.use_cases.delete_book import DeleteBookUseCase
+from src.application.use_cases.get_author import GetAuthorUseCase
 from src.application.use_cases.get_book import GetBookUseCase
+from src.application.use_cases.list_authors import ListAuthorsUseCase
 from src.application.use_cases.list_books import ListBooksUseCase
+from src.application.use_cases.update_author import UpdateAuthorUseCase
+from src.application.use_cases.update_book import UpdateBookUseCase
 from src.application.use_cases.update_book_status import UpdateBookStatusUseCase
 from src.infrastructure.config.settings import Settings, get_settings
 from src.infrastructure.database.sqlite_client import SQLiteClient
+from src.infrastructure.repositories.sqlite_author_repository import (
+    SQLiteAuthorRepository,
+)
 from src.infrastructure.repositories.sqlite_book_repository import (
     SQLiteBookRepository,
 )
@@ -69,36 +78,118 @@ def provide_book_repository(
     return SQLiteBookRepository(db_client=db_client)
 
 
+def provide_author_repository(
+    db_client: Annotated[SQLiteClient, Depends(provide_db_client)],
+) -> SQLiteAuthorRepository:
+    return SQLiteAuthorRepository(db_client=db_client)
+
+
 # ---------------------------------------------------------------------------
-# Use Cases
+# Book Use Cases
 # ---------------------------------------------------------------------------
 
 
 def provide_add_book_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    book_repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
 ) -> AddBookUseCase:
-    return AddBookUseCase(book_repository=repo)
+    return AddBookUseCase(
+        book_repository=book_repo, author_repository=author_repo
+    )
 
 
 def provide_get_book_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    book_repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
 ) -> GetBookUseCase:
-    return GetBookUseCase(book_repository=repo)
+    return GetBookUseCase(
+        book_repository=book_repo, author_repository=author_repo
+    )
 
 
 def provide_list_books_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    book_repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
 ) -> ListBooksUseCase:
-    return ListBooksUseCase(book_repository=repo)
+    return ListBooksUseCase(
+        book_repository=book_repo, author_repository=author_repo
+    )
+
+
+def provide_update_book_use_case(
+    book_repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
+) -> UpdateBookUseCase:
+    return UpdateBookUseCase(
+        book_repository=book_repo, author_repository=author_repo
+    )
 
 
 def provide_update_book_status_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    book_repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
 ) -> UpdateBookStatusUseCase:
-    return UpdateBookStatusUseCase(book_repository=repo)
+    return UpdateBookStatusUseCase(
+        book_repository=book_repo, author_repository=author_repo
+    )
 
 
 def provide_delete_book_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    book_repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
 ) -> DeleteBookUseCase:
-    return DeleteBookUseCase(book_repository=repo)
+    return DeleteBookUseCase(book_repository=book_repo)
+
+
+# ---------------------------------------------------------------------------
+# Author Use Cases
+# ---------------------------------------------------------------------------
+
+
+def provide_create_author_use_case(
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
+) -> CreateAuthorUseCase:
+    return CreateAuthorUseCase(author_repository=author_repo)
+
+
+def provide_get_author_use_case(
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
+) -> GetAuthorUseCase:
+    return GetAuthorUseCase(author_repository=author_repo)
+
+
+def provide_list_authors_use_case(
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
+) -> ListAuthorsUseCase:
+    return ListAuthorsUseCase(author_repository=author_repo)
+
+
+def provide_update_author_use_case(
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
+) -> UpdateAuthorUseCase:
+    return UpdateAuthorUseCase(author_repository=author_repo)
+
+
+def provide_delete_author_use_case(
+    author_repo: Annotated[
+        SQLiteAuthorRepository, Depends(provide_author_repository)
+    ],
+) -> DeleteAuthorUseCase:
+    return DeleteAuthorUseCase(author_repository=author_repo)

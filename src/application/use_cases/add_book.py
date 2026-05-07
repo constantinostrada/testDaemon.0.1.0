@@ -5,10 +5,11 @@ Use case: add a new book to the library.
 
 Orchestration steps:
   1. Parse and validate the ISBN via the domain value object.
-  2. Check for duplicate ISBN in the repository.
-  3. Create a new Book entity.
-  4. Persist via the repository interface.
-  5. Return a BookOutputDTO.
+  2. Validate that every referenced author exists.
+  3. Check for duplicate ISBN in the repository.
+  4. Create a new Book entity (which enforces at-least-one-author).
+  5. Persist via the repository interface.
+  6. Return a BookOutputDTO with the hydrated Author list.
 
 Rules (application layer):
   - Imports only from domain/ and application/.
@@ -21,7 +22,11 @@ from __future__ import annotations
 from src.application.dtos.book_dtos import AddBookInputDTO, BookOutputDTO
 from src.application.mappers.book_mapper import BookMapper
 from src.domain.entities.book import Book
-from src.domain.exceptions.domain_exceptions import DuplicateBookError
+from src.domain.exceptions.domain_exceptions import (
+    AuthorNotFoundError,
+    DuplicateBookError,
+)
+from src.domain.repositories.author_repository import AuthorRepository
 from src.domain.repositories.book_repository import BookRepository
 from src.domain.value_objects.isbn import ISBN
 
@@ -29,42 +34,48 @@ from src.domain.value_objects.isbn import ISBN
 class AddBookUseCase:
     """Add a new book to the library catalogue."""
 
-    def __init__(self, book_repository: BookRepository) -> None:
+    def __init__(
+        self,
+        book_repository: BookRepository,
+        author_repository: AuthorRepository,
+    ) -> None:
         self._book_repository = book_repository
+        self._author_repository = author_repository
 
     async def execute(self, dto: AddBookInputDTO) -> BookOutputDTO:
         """
-        Execute the use case.
-
-        Args:
-            dto: AddBookInputDTO carrying the book details.
-
-        Returns:
-            BookOutputDTO representing the newly created book.
-
         Raises:
             InvalidISBNError: if the isbn string is not a valid ISBN.
+            BookAuthorsRequiredError: if author_ids is empty.
+            AuthorNotFoundError: if any referenced author does not exist.
             DuplicateBookError: if a book with the same ISBN already exists.
         """
-        # 1. Parse & validate ISBN (domain raises InvalidISBNError on failure)
         isbn = ISBN(dto.isbn)
 
-        # 2. Guard against duplicates
+        await self._verify_authors_exist(dto.author_ids)
+
         existing = await self._book_repository.get_by_isbn(isbn)
         if existing is not None:
             raise DuplicateBookError(isbn.value)
 
-        # 3. Create domain entity
         book = Book.create(
             title=dto.title,
-            author=dto.author,
+            author_ids=dto.author_ids,
             isbn=isbn,
             year_published=dto.year_published,
             description=dto.description,
         )
 
-        # 4. Persist
         await self._book_repository.save(book)
 
-        # 5. Return DTO — never expose raw domain entities
-        return BookMapper.to_output_dto(book)
+        authors = await self._author_repository.list_by_ids(book.author_ids)
+        return BookMapper.to_output_dto(book, authors)
+
+    async def _verify_authors_exist(self, author_ids: list[str]) -> None:
+        if not author_ids:
+            return  # Domain entity will raise BookAuthorsRequiredError.
+        found = await self._author_repository.list_by_ids(author_ids)
+        found_ids = {a.id for a in found}
+        for aid in author_ids:
+            if aid not in found_ids:
+                raise AuthorNotFoundError(aid)

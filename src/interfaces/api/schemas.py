@@ -15,13 +15,50 @@ Rules (interfaces layer):
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
-# Request schemas
+# Author request schemas
+# ---------------------------------------------------------------------------
+
+
+class CreateAuthorRequest(BaseModel):
+    """Request body for POST /api/v1/authors."""
+
+    full_name: str = Field(
+        ..., min_length=1, max_length=300, description="Author's full name"
+    )
+    bio: str | None = Field(
+        default=None, max_length=2000, description="Optional biography"
+    )
+    date_of_birth: date | None = Field(
+        default=None, description="Optional date of birth (ISO format)"
+    )
+
+    @field_validator("full_name")
+    @classmethod
+    def strip_full_name(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("full_name must not be blank.")
+        return stripped
+
+
+class UpdateAuthorRequest(BaseModel):
+    """Request body for PATCH /api/v1/authors/{id}."""
+
+    full_name: str | None = Field(
+        default=None, min_length=1, max_length=300
+    )
+    bio: str | None = Field(default=None, max_length=2000)
+    date_of_birth: date | None = Field(default=None)
+
+
+# ---------------------------------------------------------------------------
+# Book request schemas
 # ---------------------------------------------------------------------------
 
 
@@ -29,7 +66,11 @@ class AddBookRequest(BaseModel):
     """Request body for POST /api/v1/books."""
 
     title: str = Field(..., min_length=1, max_length=500, description="Book title")
-    author: str = Field(..., min_length=1, max_length=300, description="Author name")
+    author_ids: list[str] = Field(
+        ...,
+        min_length=1,
+        description="IDs of one or more existing authors (must be non-empty).",
+    )
     isbn: str = Field(
         ...,
         min_length=10,
@@ -43,13 +84,26 @@ class AddBookRequest(BaseModel):
         default=None, max_length=2000, description="Short description or synopsis"
     )
 
-    @field_validator("title", "author")
+    @field_validator("title")
     @classmethod
-    def strip_whitespace(cls, v: str) -> str:
+    def strip_title(cls, v: str) -> str:
         stripped = v.strip()
         if not stripped:
-            raise ValueError("Field must not be blank.")
+            raise ValueError("title must not be blank.")
         return stripped
+
+
+class UpdateBookRequest(BaseModel):
+    """Request body for PATCH /api/v1/books/{id} — mutable metadata."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    author_ids: list[str] | None = Field(
+        default=None,
+        min_length=1,
+        description="If provided, replaces the book's author list.",
+    )
+    year_published: int | None = Field(default=None, ge=1000, le=2100)
+    description: str | None = Field(default=None, max_length=2000)
 
 
 class UpdateBookStatusRequest(BaseModel):
@@ -63,16 +117,44 @@ class UpdateBookStatusRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Response schemas
+# Author response schemas
+# ---------------------------------------------------------------------------
+
+
+class AuthorResponse(BaseModel):
+    """Single author response envelope."""
+
+    id: str
+    full_name: str
+    bio: str | None
+    date_of_birth: date | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedAuthorsResponse(BaseModel):
+    """Paginated list of authors."""
+
+    authors: list[AuthorResponse]
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+
+
+# ---------------------------------------------------------------------------
+# Book response schemas
 # ---------------------------------------------------------------------------
 
 
 class BookResponse(BaseModel):
-    """Single book response envelope."""
+    """Single book response envelope (with hydrated authors)."""
 
     id: str
     title: str
-    author: str
+    authors: list[AuthorResponse]
     isbn: str
     status: str
     year_published: int | None
@@ -91,6 +173,11 @@ class PaginatedBooksResponse(BaseModel):
     limit: int
     offset: int
     has_more: bool
+
+
+# ---------------------------------------------------------------------------
+# Misc schemas
+# ---------------------------------------------------------------------------
 
 
 class HealthResponse(BaseModel):

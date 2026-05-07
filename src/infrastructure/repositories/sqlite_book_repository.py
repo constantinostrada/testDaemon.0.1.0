@@ -6,6 +6,8 @@ backed by an async SQLite database via aiosqlite.
 
 Responsibilities:
   - Maps domain Book entities ↔ SQLite rows.
+  - Manages the many-to-many `book_authors` join table alongside the
+    `books` row when saving / updating.
   - Wraps all DB-level errors as domain exceptions.
   - Never leaks aiosqlite types or SQL strings into application/domain.
 
@@ -43,33 +45,45 @@ class SQLiteBookRepository(BookRepository):
     # ------------------------------------------------------------------
 
     async def save(self, book: Book) -> None:
-        """Insert a new book row. Raises DuplicateBookError via UNIQUE constraint."""
-        sql = """
+        """Insert a new book row + its join rows. Raises via UNIQUE constraint."""
+        sql_book = """
             INSERT INTO books
-                (id, title, author, isbn, status, year_published, description,
+                (id, title, isbn, status, year_published, description,
                  created_at, updated_at)
             VALUES
-                (:id, :title, :author, :isbn, :status, :year_published, :description,
+                (:id, :title, :isbn, :status, :year_published, :description,
                  :created_at, :updated_at)
         """
         async with self._db.connection() as conn:
-            await conn.execute(sql, self._to_row(book))
+            await conn.execute(sql_book, self._to_book_row(book))
+            await conn.executemany(
+                "INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+                [(book.id, aid) for aid in book.author_ids],
+            )
             await conn.commit()
         logger.debug("Saved book %s (isbn=%s)", book.id, book.isbn.value)
 
     async def get_by_id(self, book_id: str) -> Book | None:
-        sql = "SELECT * FROM books WHERE id = :id"
         async with self._db.connection() as conn:
-            async with conn.execute(sql, {"id": book_id}) as cursor:
+            async with conn.execute(
+                "SELECT * FROM books WHERE id = :id", {"id": book_id}
+            ) as cursor:
                 row = await cursor.fetchone()
-        return self._to_entity(row) if row else None
+            if row is None:
+                return None
+            author_ids = await self._fetch_author_ids(conn, book_id)
+        return self._to_entity(row, author_ids)
 
     async def get_by_isbn(self, isbn: ISBN) -> Book | None:
-        sql = "SELECT * FROM books WHERE isbn = :isbn"
         async with self._db.connection() as conn:
-            async with conn.execute(sql, {"isbn": isbn.value}) as cursor:
+            async with conn.execute(
+                "SELECT * FROM books WHERE isbn = :isbn", {"isbn": isbn.value}
+            ) as cursor:
                 row = await cursor.fetchone()
-        return self._to_entity(row) if row else None
+            if row is None:
+                return None
+            author_ids = await self._fetch_author_ids(conn, row["id"])
+        return self._to_entity(row, author_ids)
 
     async def list_all(
         self,
@@ -98,13 +112,20 @@ class SQLiteBookRepository(BookRepository):
         async with self._db.connection() as conn:
             async with conn.execute(sql, params) as cursor:
                 rows = await cursor.fetchall()
-        return [self._to_entity(row) for row in rows]
+            if not rows:
+                return []
+            author_ids_by_book = await self._fetch_author_ids_for_books(
+                conn, [row["id"] for row in rows]
+            )
+        return [
+            self._to_entity(row, author_ids_by_book.get(row["id"], []))
+            for row in rows
+        ]
 
     async def update(self, book: Book) -> None:
-        sql = """
+        sql_book = """
             UPDATE books
             SET title          = :title,
-                author         = :author,
                 isbn           = :isbn,
                 status         = :status,
                 year_published = :year_published,
@@ -113,13 +134,23 @@ class SQLiteBookRepository(BookRepository):
             WHERE id = :id
         """
         async with self._db.connection() as conn:
-            cursor = await conn.execute(sql, self._to_row(book))
-            await conn.commit()
+            cursor = await conn.execute(sql_book, self._to_book_row(book))
             if cursor.rowcount == 0:
+                await conn.rollback()
                 raise BookNotFoundError(book.id)
+            # Replace join rows atomically: delete then re-insert in same txn.
+            await conn.execute(
+                "DELETE FROM book_authors WHERE book_id = ?", (book.id,)
+            )
+            await conn.executemany(
+                "INSERT INTO book_authors (book_id, author_id) VALUES (?, ?)",
+                [(book.id, aid) for aid in book.author_ids],
+            )
+            await conn.commit()
         logger.debug("Updated book %s", book.id)
 
     async def delete(self, book_id: str) -> None:
+        # ON DELETE CASCADE on book_authors.book_id removes join rows.
         sql = "DELETE FROM books WHERE id = :id"
         async with self._db.connection() as conn:
             cursor = await conn.execute(sql, {"id": book_id})
@@ -141,17 +172,67 @@ class SQLiteBookRepository(BookRepository):
                 row = await cursor.fetchone()
         return int(row[0]) if row else 0
 
+    async def list_by_author(self, author_id: str) -> list[Book]:
+        sql = """
+            SELECT b.*
+            FROM books b
+            INNER JOIN book_authors ba ON ba.book_id = b.id
+            WHERE ba.author_id = :author_id
+            ORDER BY b.created_at DESC
+        """
+        async with self._db.connection() as conn:
+            async with conn.execute(sql, {"author_id": author_id}) as cursor:
+                rows = await cursor.fetchall()
+            if not rows:
+                return []
+            author_ids_by_book = await self._fetch_author_ids_for_books(
+                conn, [row["id"] for row in rows]
+            )
+        return [
+            self._to_entity(row, author_ids_by_book.get(row["id"], []))
+            for row in rows
+        ]
+
     # ------------------------------------------------------------------
-    # Private mapping helpers
+    # Private helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _to_row(book: Book) -> dict[str, object]:
-        """Convert a Book entity to a flat dict for SQL binding."""
+    async def _fetch_author_ids(
+        conn: aiosqlite.Connection, book_id: str
+    ) -> list[str]:
+        sql = (
+            "SELECT author_id FROM book_authors WHERE book_id = :book_id "
+            "ORDER BY rowid"
+        )
+        async with conn.execute(sql, {"book_id": book_id}) as cursor:
+            rows = await cursor.fetchall()
+        return [row["author_id"] for row in rows]
+
+    @staticmethod
+    async def _fetch_author_ids_for_books(
+        conn: aiosqlite.Connection, book_ids: list[str]
+    ) -> dict[str, list[str]]:
+        if not book_ids:
+            return {}
+        placeholders = ",".join("?" for _ in book_ids)
+        sql = (
+            f"SELECT book_id, author_id FROM book_authors "
+            f"WHERE book_id IN ({placeholders}) ORDER BY rowid"
+        )
+        async with conn.execute(sql, tuple(book_ids)) as cursor:
+            rows = await cursor.fetchall()
+        result: dict[str, list[str]] = {bid: [] for bid in book_ids}
+        for row in rows:
+            result[row["book_id"]].append(row["author_id"])
+        return result
+
+    @staticmethod
+    def _to_book_row(book: Book) -> dict[str, object]:
+        """Convert a Book entity to a flat dict for the books-table binding."""
         return {
             "id": book.id,
             "title": book.title,
-            "author": book.author,
             "isbn": book.isbn.value,
             "status": book.status.value,
             "year_published": book.year_published,
@@ -161,17 +242,12 @@ class SQLiteBookRepository(BookRepository):
         }
 
     @staticmethod
-    def _to_entity(row: aiosqlite.Row) -> Book:
-        """
-        Reconstruct a Book domain entity from a DB row.
-
-        Infrastructure errors are converted to domain exceptions so no
-        aiosqlite types or raw SQL leak into upper layers.
-        """
+    def _to_entity(row: aiosqlite.Row, author_ids: list[str]) -> Book:
+        """Reconstruct a Book domain entity from a books row + its join rows."""
         return Book(
             id=row["id"],
             title=row["title"],
-            author=row["author"],
+            author_ids=author_ids,
             isbn=ISBN(row["isbn"]),
             status=BookStatus(row["status"]),
             year_published=row["year_published"],

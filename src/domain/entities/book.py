@@ -5,7 +5,7 @@ Central domain entity representing a book in the library.
 
 Invariants enforced at construction and mutation time:
   - title must be non-empty.
-  - author must be non-empty.
+  - author_ids must contain at least one id, with no duplicates.
   - isbn must be a valid ISBN-10 or ISBN-13 (delegated to ISBN value object).
   - status transitions must follow the allowed lifecycle.
 
@@ -22,6 +22,7 @@ import uuid
 from datetime import datetime, timezone
 
 from src.domain.exceptions.domain_exceptions import (
+    BookAuthorsRequiredError,
     InvalidBookStatusTransitionError,
 )
 from src.domain.value_objects.book_status import BookStatus
@@ -32,7 +33,10 @@ class Book:
     """
     Aggregate root representing a physical or digital book in the library.
 
-    Identity is provided by a UUID string (`id`).
+    Identity is provided by a UUID string (`id`). Authorship is modelled
+    as a list of references to Author aggregate roots — Book holds the
+    ids only, and the application layer hydrates Author entities when
+    output is requested.
     """
 
     def __init__(
@@ -40,7 +44,7 @@ class Book:
         *,
         id: str,
         title: str,
-        author: str,
+        author_ids: list[str],
         isbn: ISBN,
         status: BookStatus = BookStatus.UNREAD,
         year_published: int | None = None,
@@ -49,11 +53,11 @@ class Book:
         updated_at: datetime | None = None,
     ) -> None:
         self._validate_title(title)
-        self._validate_author(author)
+        normalised_author_ids = self._validate_author_ids(author_ids)
 
         self._id = id
         self._title = title.strip()
-        self._author = author.strip()
+        self._author_ids = normalised_author_ids
         self._isbn = isbn
         self._status = status
         self._year_published = year_published
@@ -70,7 +74,7 @@ class Book:
         cls,
         *,
         title: str,
-        author: str,
+        author_ids: list[str],
         isbn: ISBN,
         year_published: int | None = None,
         description: str | None = None,
@@ -79,7 +83,7 @@ class Book:
         return cls(
             id=str(uuid.uuid4()),
             title=title,
-            author=author,
+            author_ids=author_ids,
             isbn=isbn,
             status=BookStatus.UNREAD,
             year_published=year_published,
@@ -99,8 +103,8 @@ class Book:
         return self._title
 
     @property
-    def author(self) -> str:
-        return self._author
+    def author_ids(self) -> list[str]:
+        return list(self._author_ids)
 
     @property
     def isbn(self) -> ISBN:
@@ -149,7 +153,7 @@ class Book:
         self,
         *,
         title: str | None = None,
-        author: str | None = None,
+        author_ids: list[str] | None = None,
         year_published: int | None = None,
         description: str | None = None,
     ) -> None:
@@ -157,9 +161,8 @@ class Book:
         if title is not None:
             self._validate_title(title)
             self._title = title.strip()
-        if author is not None:
-            self._validate_author(author)
-            self._author = author.strip()
+        if author_ids is not None:
+            self._author_ids = self._validate_author_ids(author_ids)
         if year_published is not None:
             self._year_published = year_published
         if description is not None:
@@ -194,6 +197,17 @@ class Book:
             raise ValueError("Book title must not be empty.")
 
     @staticmethod
-    def _validate_author(author: str) -> None:
-        if not author or not author.strip():
-            raise ValueError("Book author must not be empty.")
+    def _validate_author_ids(author_ids: list[str]) -> list[str]:
+        if not author_ids:
+            raise BookAuthorsRequiredError()
+        seen: set[str] = set()
+        normalised: list[str] = []
+        for raw_id in author_ids:
+            if not isinstance(raw_id, str) or not raw_id.strip():
+                raise ValueError("Book author id must be a non-empty string.")
+            cleaned = raw_id.strip()
+            if cleaned in seen:
+                continue
+            seen.add(cleaned)
+            normalised.append(cleaned)
+        return normalised
