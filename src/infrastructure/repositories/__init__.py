@@ -1,3 +1,5 @@
-from src.infrastructure.repositories.sqlite_book_repository import SQLiteBookRepository
+from src.infrastructure.repositories.in_memory_book_repository import (
+    InMemoryBookRepository,
+)
 
-__all__ = ["SQLiteBookRepository"]
+__all__ = ["InMemoryBookRepository"]

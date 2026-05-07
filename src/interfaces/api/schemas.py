@@ -19,7 +19,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
-
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
@@ -29,27 +28,37 @@ class AddBookRequest(BaseModel):
     """Request body for POST /api/v1/books."""
 
     title: str = Field(..., min_length=1, max_length=500, description="Book title")
-    author: str = Field(..., min_length=1, max_length=300, description="Author name")
+    authors: list[str] = Field(
+        ...,
+        min_length=1,
+        description="One or more author names",
+    )
     isbn: str = Field(
         ...,
         min_length=10,
         max_length=17,
         description="ISBN-10 or ISBN-13 (hyphens optional)",
     )
+    genre: str = Field(..., min_length=1, max_length=100, description="Book genre")
     year_published: int | None = Field(
         default=None, ge=1000, le=2100, description="Publication year"
     )
-    description: str | None = Field(
-        default=None, max_length=2000, description="Short description or synopsis"
-    )
 
-    @field_validator("title", "author")
+    @field_validator("title", "genre")
     @classmethod
     def strip_whitespace(cls, v: str) -> str:
         stripped = v.strip()
         if not stripped:
             raise ValueError("Field must not be blank.")
         return stripped
+
+    @field_validator("authors")
+    @classmethod
+    def validate_authors(cls, v: list[str]) -> list[str]:
+        cleaned = [a.strip() for a in v]
+        if any(not a for a in cleaned):
+            raise ValueError("Author names must not be blank.")
+        return cleaned
 
 
 class UpdateBookStatusRequest(BaseModel):
@@ -72,11 +81,11 @@ class BookResponse(BaseModel):
 
     id: str
     title: str
-    author: str
+    authors: list[str]
     isbn: str
+    genre: str
     status: str
     year_published: int | None
-    description: str | None
     created_at: datetime
     updated_at: datetime
 

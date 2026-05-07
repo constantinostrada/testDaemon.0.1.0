@@ -26,12 +26,11 @@ from src.application.use_cases.delete_book import DeleteBookUseCase
 from src.application.use_cases.get_book import GetBookUseCase
 from src.application.use_cases.list_books import ListBooksUseCase
 from src.application.use_cases.update_book_status import UpdateBookStatusUseCase
+from src.domain.repositories.book_repository import BookRepository
 from src.infrastructure.config.settings import Settings, get_settings
-from src.infrastructure.database.sqlite_client import SQLiteClient
-from src.infrastructure.repositories.sqlite_book_repository import (
-    SQLiteBookRepository,
+from src.infrastructure.repositories.in_memory_book_repository import (
+    InMemoryBookRepository,
 )
-
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -43,30 +42,17 @@ def provide_settings() -> Settings:
 
 
 # ---------------------------------------------------------------------------
-# Database
-# ---------------------------------------------------------------------------
-
-
-@lru_cache(maxsize=1)
-def _create_db_client(db_path: str) -> SQLiteClient:
-    return SQLiteClient(db_path=db_path)
-
-
-def provide_db_client(
-    settings: Annotated[Settings, Depends(provide_settings)],
-) -> SQLiteClient:
-    return _create_db_client(settings.database_url)
-
-
-# ---------------------------------------------------------------------------
 # Repositories
 # ---------------------------------------------------------------------------
 
 
-def provide_book_repository(
-    db_client: Annotated[SQLiteClient, Depends(provide_db_client)],
-) -> SQLiteBookRepository:
-    return SQLiteBookRepository(db_client=db_client)
+@lru_cache(maxsize=1)
+def _book_repository_singleton() -> InMemoryBookRepository:
+    return InMemoryBookRepository()
+
+
+def provide_book_repository() -> BookRepository:
+    return _book_repository_singleton()
 
 
 # ---------------------------------------------------------------------------
@@ -75,30 +61,30 @@ def provide_book_repository(
 
 
 def provide_add_book_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    repo: Annotated[BookRepository, Depends(provide_book_repository)],
 ) -> AddBookUseCase:
     return AddBookUseCase(book_repository=repo)
 
 
 def provide_get_book_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    repo: Annotated[BookRepository, Depends(provide_book_repository)],
 ) -> GetBookUseCase:
     return GetBookUseCase(book_repository=repo)
 
 
 def provide_list_books_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    repo: Annotated[BookRepository, Depends(provide_book_repository)],
 ) -> ListBooksUseCase:
     return ListBooksUseCase(book_repository=repo)
 
 
 def provide_update_book_status_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    repo: Annotated[BookRepository, Depends(provide_book_repository)],
 ) -> UpdateBookStatusUseCase:
     return UpdateBookStatusUseCase(book_repository=repo)
 
 
 def provide_delete_book_use_case(
-    repo: Annotated[SQLiteBookRepository, Depends(provide_book_repository)],
+    repo: Annotated[BookRepository, Depends(provide_book_repository)],
 ) -> DeleteBookUseCase:
     return DeleteBookUseCase(book_repository=repo)

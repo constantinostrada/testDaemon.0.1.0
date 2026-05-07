@@ -57,10 +57,10 @@ class AddBookUseCase:
         # 3. Create domain entity
         book = Book.create(
             title=dto.title,
-            author=dto.author,
+            authors=dto.authors,
             isbn=isbn,
+            genre=dto.genre,
             year_published=dto.year_published,
-            description=dto.description,
         )
 
         # 4. Persist

@@ -1,50 +1,43 @@
 """
 Integration tests for the /api/v1/books endpoints.
 
-Uses FastAPI's TestClient with a real SQLite in-memory-style temp database.
-httpx is used as the async test client.
+Uses FastAPI's TestClient against the real in-memory repository wired
+through `dependencies.py`. The repository singleton is reset between
+tests so each case gets a clean catalogue.
 """
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from src.interfaces.api.dependencies import _book_repository_singleton
 from src.interfaces.api.main import create_app
 
 
 @pytest.fixture()
-async def client(tmp_path: object) -> AsyncClient:
-    """
-    Spin up a test application with a temporary SQLite database.
-    The db is discarded after each test function.
-    """
-    import tempfile
-    import os
-
-    # Point the app to a fresh temp database
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        db_path = f.name
-
-    os.environ["DATABASE_URL"] = db_path
+async def client() -> AsyncIterator[AsyncClient]:
+    """Spin up a test app with a fresh in-memory book repository."""
+    _book_repository_singleton.cache_clear()
 
     app = create_app()
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        # Trigger lifespan startup
         async with app.router.lifespan_context(app):
             yield ac
 
-    os.unlink(db_path)
+    _book_repository_singleton.cache_clear()
 
 
 VALID_BOOK_PAYLOAD = {
     "title": "The Pragmatic Programmer",
-    "author": "David Thomas, Andrew Hunt",
+    "authors": ["David Thomas", "Andrew Hunt"],
     "isbn": "9780135957059",
+    "genre": "Software Engineering",
     "year_published": 2019,
-    "description": "A classic software engineering book.",
 }
 
 
@@ -62,6 +55,8 @@ class TestAddBook:
         assert response.status_code == 201
         data = response.json()
         assert data["title"] == VALID_BOOK_PAYLOAD["title"]
+        assert data["authors"] == VALID_BOOK_PAYLOAD["authors"]
+        assert data["genre"] == VALID_BOOK_PAYLOAD["genre"]
         assert data["status"] == "unread"
         assert "id" in data
 
@@ -71,7 +66,7 @@ class TestAddBook:
         assert response.status_code == 409
 
     async def test_add_invalid_isbn_returns_422(self, client: AsyncClient) -> None:
-        payload = {**VALID_BOOK_PAYLOAD, "isbn": "0000000000"}
+        payload = {**VALID_BOOK_PAYLOAD, "isbn": "1234567890"}
         response = await client.post("/api/v1/books", json=payload)
         assert response.status_code == 422
 

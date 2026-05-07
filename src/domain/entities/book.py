@@ -1,12 +1,13 @@
 """
 Book Entity
 ===========
-Central domain entity representing a book in the library.
+Central domain entity representing a book in the library catalog.
 
 Invariants enforced at construction and mutation time:
   - title must be non-empty.
-  - author must be non-empty.
+  - authors must be a non-empty list with each name non-empty.
   - isbn must be a valid ISBN-10 or ISBN-13 (delegated to ISBN value object).
+  - genre must be non-empty.
   - status transitions must follow the allowed lifecycle.
 
 Rules (domain layer):
@@ -19,7 +20,7 @@ Rules (domain layer):
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from src.domain.exceptions.domain_exceptions import (
     InvalidBookStatusTransitionError,
@@ -30,7 +31,7 @@ from src.domain.value_objects.isbn import ISBN
 
 class Book:
     """
-    Aggregate root representing a physical or digital book in the library.
+    Aggregate root representing a book in the library catalog.
 
     Identity is provided by a UUID string (`id`).
     """
@@ -40,25 +41,26 @@ class Book:
         *,
         id: str,
         title: str,
-        author: str,
+        authors: list[str],
         isbn: ISBN,
+        genre: str,
         status: BookStatus = BookStatus.UNREAD,
         year_published: int | None = None,
-        description: str | None = None,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
         self._validate_title(title)
-        self._validate_author(author)
+        self._validate_authors(authors)
+        self._validate_genre(genre)
 
         self._id = id
         self._title = title.strip()
-        self._author = author.strip()
+        self._authors = [a.strip() for a in authors]
         self._isbn = isbn
+        self._genre = genre.strip()
         self._status = status
         self._year_published = year_published
-        self._description = description
-        self._created_at = created_at or datetime.now(timezone.utc)
+        self._created_at = created_at or datetime.now(UTC)
         self._updated_at = updated_at or self._created_at
 
     # ------------------------------------------------------------------
@@ -70,20 +72,20 @@ class Book:
         cls,
         *,
         title: str,
-        author: str,
+        authors: list[str],
         isbn: ISBN,
+        genre: str,
         year_published: int | None = None,
-        description: str | None = None,
-    ) -> "Book":
+    ) -> Book:
         """Create a new book with a fresh UUID and UNREAD status."""
         return cls(
             id=str(uuid.uuid4()),
             title=title,
-            author=author,
+            authors=authors,
             isbn=isbn,
+            genre=genre,
             status=BookStatus.UNREAD,
             year_published=year_published,
-            description=description,
         )
 
     # ------------------------------------------------------------------
@@ -99,12 +101,16 @@ class Book:
         return self._title
 
     @property
-    def author(self) -> str:
-        return self._author
+    def authors(self) -> list[str]:
+        return list(self._authors)
 
     @property
     def isbn(self) -> ISBN:
         return self._isbn
+
+    @property
+    def genre(self) -> str:
+        return self._genre
 
     @property
     def status(self) -> BookStatus:
@@ -113,10 +119,6 @@ class Book:
     @property
     def year_published(self) -> int | None:
         return self._year_published
-
-    @property
-    def description(self) -> str | None:
-        return self._description
 
     @property
     def created_at(self) -> datetime:
@@ -143,28 +145,29 @@ class Book:
                 requested=new_status.value,
             )
         self._status = new_status
-        self._updated_at = datetime.now(timezone.utc)
+        self._updated_at = datetime.now(UTC)
 
     def update_metadata(
         self,
         *,
         title: str | None = None,
-        author: str | None = None,
+        authors: list[str] | None = None,
+        genre: str | None = None,
         year_published: int | None = None,
-        description: str | None = None,
     ) -> None:
         """Update mutable metadata fields. None values are left unchanged."""
         if title is not None:
             self._validate_title(title)
             self._title = title.strip()
-        if author is not None:
-            self._validate_author(author)
-            self._author = author.strip()
+        if authors is not None:
+            self._validate_authors(authors)
+            self._authors = [a.strip() for a in authors]
+        if genre is not None:
+            self._validate_genre(genre)
+            self._genre = genre.strip()
         if year_published is not None:
             self._year_published = year_published
-        if description is not None:
-            self._description = description
-        self._updated_at = datetime.now(timezone.utc)
+        self._updated_at = datetime.now(UTC)
 
     # ------------------------------------------------------------------
     # Equality / hashing — identity based
@@ -194,6 +197,14 @@ class Book:
             raise ValueError("Book title must not be empty.")
 
     @staticmethod
-    def _validate_author(author: str) -> None:
-        if not author or not author.strip():
-            raise ValueError("Book author must not be empty.")
+    def _validate_authors(authors: list[str]) -> None:
+        if not authors:
+            raise ValueError("Book must have at least one author.")
+        for author in authors:
+            if not author or not author.strip():
+                raise ValueError("Book author names must not be empty.")
+
+    @staticmethod
+    def _validate_genre(genre: str) -> None:
+        if not genre or not genre.strip():
+            raise ValueError("Book genre must not be empty.")
