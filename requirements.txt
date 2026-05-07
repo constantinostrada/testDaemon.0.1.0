@@ -1,0 +1,17 @@
+# =============================================================================
+# Mini-Library API — Python dependencies
+# Pin to exact versions for reproducible builds.
+# Generated from pyproject.toml — edit pyproject.toml and re-pin via:
+#   pip-compile pyproject.toml -o requirements.txt
+# =============================================================================
+
+# --- Core ---
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.7.0
+pydantic-settings>=2.2.0
+aiosqlite>=0.20.0
+python-dotenv>=1.0.0
+
+# --- Dev / Test (install with: pip install -r requirements-dev.txt) ---
+# See requirements-dev.txt
