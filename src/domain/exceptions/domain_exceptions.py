@@ -57,3 +57,49 @@ class InvalidBookStatusTransitionError(DomainException):
         )
         self.current = current
         self.requested = requested
+
+
+class AuthorNotFoundError(DomainException):
+    """Raised when a requested Author does not exist in the repository."""
+
+    def __init__(self, author_id: str) -> None:
+        super().__init__(f"Author with id '{author_id}' was not found.")
+        self.author_id = author_id
+
+
+class DuplicateAuthorError(DomainException):
+    """Raised when attempting to create an author whose full_name is already registered."""
+
+    def __init__(self, full_name: str) -> None:
+        super().__init__(
+            f"An author named '{full_name}' already exists in the library."
+        )
+        self.full_name = full_name
+
+
+class AuthorHasBooksError(DomainException):
+    """Raised when attempting to delete an author still referenced by one or more books."""
+
+    def __init__(self, author_id: str, book_count: int) -> None:
+        super().__init__(
+            f"Author '{author_id}' cannot be deleted because {book_count} "
+            "book(s) still reference them."
+        )
+        self.author_id = author_id
+        self.book_count = book_count
+
+
+class InvalidAuthorError(DomainException):
+    """Raised when an Author field fails domain validation."""
+
+    def __init__(self, field: str, reason: str) -> None:
+        super().__init__(f"Invalid author {field}: {reason}")
+        self.field = field
+        self.reason = reason
+
+
+class BookAuthorsRequiredError(DomainException):
+    """Raised when a book is created or updated without at least one author."""
+
+    def __init__(self) -> None:
+        super().__init__("A book must have at least one author.")

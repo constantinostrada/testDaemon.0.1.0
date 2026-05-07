@@ -86,3 +86,8 @@ class BookRepository(ABC):
     async def count(self, *, status_filter: BookStatus | None = None) -> int:
         """Return the total number of books, optionally filtered by status."""
         ...
+
+    @abstractmethod
+    async def list_by_author(self, author_id: str) -> list[Book]:
+        """Return all books that reference the given author id."""
+        ...
