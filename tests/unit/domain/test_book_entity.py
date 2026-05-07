@@ -12,11 +12,12 @@ from src.domain.value_objects.isbn import ISBN
 
 def make_book(**kwargs: object) -> Book:
     """Helper: create a Book with sensible defaults."""
-    defaults = dict(
-        title="Clean Code",
-        author="Robert C. Martin",
-        isbn=ISBN("9780132350884"),
-    )
+    defaults: dict[str, object] = {
+        "title": "Clean Code",
+        "authors": ["Robert C. Martin"],
+        "isbn": ISBN("9780132350884"),
+        "genre": "Software Engineering",
+    }
     defaults.update(kwargs)
     return Book.create(**defaults)  # type: ignore[arg-type]
 
@@ -39,9 +40,27 @@ class TestBookCreation:
         with pytest.raises(ValueError, match="title"):
             make_book(title="   ")
 
-    def test_empty_author_raises(self) -> None:
+    def test_empty_authors_list_raises(self) -> None:
         with pytest.raises(ValueError, match="author"):
-            make_book(author="")
+            make_book(authors=[])
+
+    def test_blank_author_name_raises(self) -> None:
+        with pytest.raises(ValueError, match="author"):
+            make_book(authors=["Valid", "  "])
+
+    def test_empty_genre_raises(self) -> None:
+        with pytest.raises(ValueError, match="genre"):
+            make_book(genre="   ")
+
+    def test_supports_multiple_authors(self) -> None:
+        book = make_book(authors=["Erich Gamma", "Richard Helm", "Ralph Johnson"])
+        assert book.authors == ["Erich Gamma", "Richard Helm", "Ralph Johnson"]
+
+    def test_authors_property_returns_defensive_copy(self) -> None:
+        book = make_book(authors=["A", "B"])
+        authors = book.authors
+        authors.append("Mutation")
+        assert book.authors == ["A", "B"]
 
 
 class TestBookStatusTransitions:
@@ -84,12 +103,12 @@ class TestBookStatusTransitions:
 class TestBookEquality:
     def test_same_id_equal(self) -> None:
         book = make_book()
-        # Reconstruct with same id
         clone = Book(
             id=book.id,
             title="Different Title",
-            author="Other Author",
+            authors=["Other Author"],
             isbn=ISBN("9780132350884"),
+            genre="Other Genre",
         )
         assert book == clone
 

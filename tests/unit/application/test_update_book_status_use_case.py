@@ -21,8 +21,9 @@ from src.domain.value_objects.isbn import ISBN
 def _make_book() -> Book:
     return Book.create(
         title="Refactoring",
-        author="Martin Fowler",
+        authors=["Martin Fowler"],
         isbn=ISBN("9780134757599"),
+        genre="Software Engineering",
     )
 
 

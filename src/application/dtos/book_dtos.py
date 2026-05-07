@@ -12,9 +12,8 @@ Rules (application layer):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-
 
 # ---------------------------------------------------------------------------
 # Input DTOs
@@ -26,10 +25,10 @@ class AddBookInputDTO:
     """Input contract for the AddBookUseCase."""
 
     title: str
-    author: str
+    authors: list[str]      # one or more author names
     isbn: str               # raw string — validated by the domain ISBN value object
+    genre: str
     year_published: int | None = None
-    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -74,11 +73,11 @@ class BookOutputDTO:
 
     id: str
     title: str
-    author: str
+    authors: list[str]
     isbn: str
+    genre: str
     status: str
     year_published: int | None
-    description: str | None
     created_at: datetime
     updated_at: datetime
 

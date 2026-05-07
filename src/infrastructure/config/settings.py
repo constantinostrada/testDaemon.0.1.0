@@ -33,9 +33,6 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     log_level: str = "info"
 
-    # Database
-    database_url: str = "./library.db"
-
     # CORS — stored as a comma-separated string, parsed into a list
     cors_origins: str = "http://localhost:3000"
 

@@ -10,10 +10,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.application.dtos.book_dtos import AddBookInputDTO
+from src.application.dtos.book_dtos import AddBookInputDTO, BookOutputDTO
 from src.application.use_cases.add_book import AddBookUseCase
 from src.domain.exceptions.domain_exceptions import DuplicateBookError, InvalidISBNError
-from src.domain.value_objects.isbn import ISBN
 
 
 @pytest.fixture()
@@ -36,23 +35,43 @@ class TestAddBookUseCase:
     ) -> None:
         dto = AddBookInputDTO(
             title="Clean Code",
-            author="Robert C. Martin",
+            authors=["Robert C. Martin"],
             isbn="9780132350884",
+            genre="Software Engineering",
             year_published=2008,
         )
         result = await use_case.execute(dto)
 
         assert result.title == "Clean Code"
-        assert result.author == "Robert C. Martin"
+        assert result.authors == ["Robert C. Martin"]
         assert result.isbn == "9780132350884"
+        assert result.genre == "Software Engineering"
         assert result.status == "unread"
         mock_repo.save.assert_awaited_once()
+
+    async def test_supports_multiple_authors(
+        self, use_case: AddBookUseCase
+    ) -> None:
+        dto = AddBookInputDTO(
+            title="Design Patterns",
+            authors=["Erich Gamma", "Richard Helm", "Ralph Johnson", "John Vlissides"],
+            isbn="9780201633610",
+            genre="Software Engineering",
+        )
+        result = await use_case.execute(dto)
+        assert result.authors == [
+            "Erich Gamma",
+            "Richard Helm",
+            "Ralph Johnson",
+            "John Vlissides",
+        ]
 
     async def test_invalid_isbn_raises(self, use_case: AddBookUseCase) -> None:
         dto = AddBookInputDTO(
             title="Book",
-            author="Author",
+            authors=["Author"],
             isbn="000000000",  # too short / wrong check
+            genre="Fiction",
         )
         with pytest.raises(InvalidISBNError):
             await use_case.execute(dto)
@@ -66,8 +85,9 @@ class TestAddBookUseCase:
 
         dto = AddBookInputDTO(
             title="Any Title",
-            author="Any Author",
+            authors=["Any Author"],
             isbn="9780132350884",
+            genre="Fiction",
         )
         with pytest.raises(DuplicateBookError):
             await use_case.execute(dto)
@@ -77,12 +97,11 @@ class TestAddBookUseCase:
     async def test_output_dto_does_not_expose_domain_entity(
         self, use_case: AddBookUseCase
     ) -> None:
-        from src.application.dtos.book_dtos import BookOutputDTO
-
         dto = AddBookInputDTO(
             title="Domain-Driven Design",
-            author="Eric Evans",
+            authors=["Eric Evans"],
             isbn="9780321125217",
+            genre="Software Engineering",
         )
         result = await use_case.execute(dto)
         assert isinstance(result, BookOutputDTO)

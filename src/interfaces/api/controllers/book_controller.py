@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from src.application.dtos.book_dtos import (
     AddBookInputDTO,
@@ -80,10 +80,10 @@ async def add_book(
     try:
         dto = AddBookInputDTO(
             title=body.title,
-            author=body.author,
+            authors=body.authors,
             isbn=body.isbn,
+            genre=body.genre,
             year_published=body.year_published,
-            description=body.description,
         )
         result = await use_case.execute(dto)
         return BookResponse(**result.__dict__)
@@ -218,15 +218,17 @@ async def update_book_status(
 @router.delete(
     "/{book_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
     summary="Delete a book",
 )
 async def delete_book(
     book_id: str,
     use_case: Annotated[DeleteBookUseCase, Depends(provide_delete_book_use_case)],
-) -> None:
+) -> Response:
     try:
         dto = DeleteBookInputDTO(book_id=book_id)
         await use_case.execute(dto)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except BookNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

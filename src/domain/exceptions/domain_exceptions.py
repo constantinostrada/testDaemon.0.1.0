@@ -10,7 +10,7 @@ Rules:
 """
 
 
-class DomainException(Exception):
+class DomainException(Exception):  # noqa: N818
     """Base class for all domain exceptions."""
 
     def __init__(self, message: str) -> None:

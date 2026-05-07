@@ -24,11 +24,11 @@ class BookMapper:
         return BookOutputDTO(
             id=book.id,
             title=book.title,
-            author=book.author,
+            authors=book.authors,
             isbn=book.isbn.value,
+            genre=book.genre,
             status=book.status.value,
             year_published=book.year_published,
-            description=book.description,
             created_at=book.created_at,
             updated_at=book.updated_at,
         )

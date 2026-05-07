@@ -30,9 +30,9 @@ class TestISBN:
         assert isbn.value == "0132350882"
 
     def test_valid_isbn10_with_x_check_digit(self) -> None:
-        # ISBN-10 with X as check digit
-        isbn = ISBN("047191738X")
-        assert isbn.value == "047191738X"
+        # ISBN-10 with X as check digit (Harry Potter and the Deathly Hallows)
+        isbn = ISBN("043942089X")
+        assert isbn.value == "043942089X"
 
     # ------------------------------------------------------------------
     # Equality / hashing

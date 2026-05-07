@@ -30,7 +30,7 @@ class BookStatus(str, Enum):
     # ------------------------------------------------------------------
 
     @classmethod
-    def allowed_transitions(cls) -> dict["BookStatus", set["BookStatus"]]:
+    def allowed_transitions(cls) -> dict[BookStatus, set[BookStatus]]:
         """Return the set of valid next-states for each status."""
         return {
             cls.UNREAD: {cls.READING},
@@ -38,7 +38,7 @@ class BookStatus(str, Enum):
             cls.READ: set(),  # terminal state — no further transitions
         }
 
-    def can_transition_to(self, next_status: "BookStatus") -> bool:
+    def can_transition_to(self, next_status: BookStatus) -> bool:
         """Return True if transitioning from *self* to *next_status* is allowed."""
         return next_status in self.allowed_transitions().get(self, set())
 

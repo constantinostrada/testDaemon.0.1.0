@@ -15,15 +15,14 @@ Rules (interfaces layer):
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.infrastructure.config.settings import get_settings
-from src.infrastructure.database.sqlite_client import SQLiteClient
 from src.interfaces.api.controllers.book_controller import router as books_router
 from src.interfaces.api.schemas import ErrorResponse, HealthResponse
 
@@ -55,11 +54,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.app_version,
         settings.app_env,
     )
-
-    # Initialise the database schema on startup
-    db_client = SQLiteClient(db_path=settings.database_url)
-    await db_client.initialise()
-    logger.info("Database ready at '%s'", settings.database_url)
 
     yield  # Application is running
 
