@@ -84,7 +84,15 @@ export default function CatalogPage(): JSX.Element {
 
   return (
     <div className="mt-2">
-      <h2 style={{ marginBottom: "1rem" }}>Catalog</h2>
+      <div
+        className="flex items-center justify-between"
+        style={{ marginBottom: "1rem", gap: "1rem" }}
+      >
+        <h2 style={{ margin: 0 }}>Catalog</h2>
+        <a href="/add" className="btn btn-primary" data-testid="catalog-add-book-link">
+          + Add Book
+        </a>
+      </div>
 
       <div className="form-group">
         <input
