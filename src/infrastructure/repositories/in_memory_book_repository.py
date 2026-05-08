@@ -84,3 +84,30 @@ class InMemoryBookRepository(BookRepository):
         if status_filter is None:
             return len(self._books)
         return sum(1 for b in self._books.values() if b.status == status_filter)
+
+    async def search(
+        self,
+        *,
+        title_query: str | None = None,
+        author_query: str | None = None,
+        year_published: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Book], int]:
+        title_needle = title_query.casefold() if title_query else None
+        author_needle = author_query.casefold() if author_query else None
+
+        def matches(book: Book) -> bool:
+            if title_needle is not None and title_needle not in book.title.casefold():
+                return False
+            if author_needle is not None and not any(
+                author_needle in a.casefold() for a in book.authors
+            ):
+                return False
+            if year_published is not None and book.year_published != year_published:
+                return False
+            return True
+
+        matched = [b for b in self._books.values() if matches(b)]
+        matched.sort(key=lambda b: b.created_at, reverse=True)
+        return matched[offset : offset + limit], len(matched)

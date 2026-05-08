@@ -62,6 +62,23 @@ class GetBookInputDTO:
     book_id: str
 
 
+@dataclass(frozen=True)
+class SearchBooksInputDTO:
+    """Input contract for the SearchBooksUseCase.
+
+    All criteria are optional; non-None criteria are combined with AND
+    semantics in the use case. Matching rules (substring vs exact) are
+    decided at the domain/repository contract level — see ADR
+    `docs/decisions/0001-search-matching.md`.
+    """
+
+    title_query: str | None = None
+    author_query: str | None = None
+    year_published: int | None = None
+    limit: int = 50
+    offset: int = 0
+
+
 # ---------------------------------------------------------------------------
 # Output DTOs
 # ---------------------------------------------------------------------------
