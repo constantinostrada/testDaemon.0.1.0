@@ -12,7 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 async function getBooks(): Promise<PaginatedBooks | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/books?limit=50`, {
+    const res = await fetch(`${API_URL}/api/v1/books?limit=20`, {
       // Revalidate every 30 seconds (ISR)
       next: { revalidate: 30 },
     });

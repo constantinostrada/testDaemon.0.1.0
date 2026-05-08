@@ -13,19 +13,26 @@ import { booksApi, ApiError } from "@/lib/api-client";
 
 interface FormState {
   title: string;
-  author: string;
+  authors: string;
   isbn: string;
+  genre: string;
   year_published: string;
-  description: string;
 }
 
 const INITIAL_STATE: FormState = {
   title: "",
-  author: "",
+  authors: "",
   isbn: "",
+  genre: "",
   year_published: "",
-  description: "",
 };
+
+function parseAuthors(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((a) => a.trim())
+    .filter((a) => a.length > 0);
+}
 
 export default function AddBookForm(): JSX.Element {
   const router = useRouter();
@@ -34,7 +41,7 @@ export default function AddBookForm(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    e: React.ChangeEvent<HTMLInputElement>,
   ): void => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -45,13 +52,20 @@ export default function AddBookForm(): JSX.Element {
     setSubmitting(true);
     setError(null);
 
+    const authors = parseAuthors(form.authors);
+    if (authors.length === 0) {
+      setError("Please enter at least one author.");
+      setSubmitting(false);
+      return;
+    }
+
     try {
       await booksApi.add({
         title: form.title.trim(),
-        author: form.author.trim(),
+        authors,
         isbn: form.isbn.trim(),
+        genre: form.genre.trim(),
         year_published: form.year_published ? parseInt(form.year_published, 10) : null,
-        description: form.description.trim() || null,
       });
       router.push("/");
       router.refresh();
@@ -89,21 +103,21 @@ export default function AddBookForm(): JSX.Element {
       </div>
 
       <div className="form-group">
-        <label htmlFor="author" className="form-label">
-          Author <span style={{ color: "#dc2626" }}>*</span>
+        <label htmlFor="authors" className="form-label">
+          Authors <span style={{ color: "#dc2626" }}>*</span>
         </label>
         <input
-          id="author"
-          name="author"
+          id="authors"
+          name="authors"
           type="text"
           className="form-input"
-          value={form.author}
+          value={form.authors}
           onChange={handleChange}
           required
-          maxLength={300}
           placeholder="e.g. David Thomas, Andrew Hunt"
           disabled={submitting}
         />
+        <span className="text-muted text-sm">Separate multiple authors with commas.</span>
       </div>
 
       <div className="form-group">
@@ -126,6 +140,24 @@ export default function AddBookForm(): JSX.Element {
       </div>
 
       <div className="form-group">
+        <label htmlFor="genre" className="form-label">
+          Genre <span style={{ color: "#dc2626" }}>*</span>
+        </label>
+        <input
+          id="genre"
+          name="genre"
+          type="text"
+          className="form-input"
+          value={form.genre}
+          onChange={handleChange}
+          required
+          maxLength={100}
+          placeholder="e.g. Software"
+          disabled={submitting}
+        />
+      </div>
+
+      <div className="form-group">
         <label htmlFor="year_published" className="form-label">
           Year Published
         </label>
@@ -139,22 +171,6 @@ export default function AddBookForm(): JSX.Element {
           min={1000}
           max={2100}
           placeholder="e.g. 2019"
-          disabled={submitting}
-        />
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="description" className="form-label">
-          Description
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          className="form-textarea"
-          value={form.description}
-          onChange={handleChange}
-          maxLength={2000}
-          placeholder="Short synopsis or notes…"
           disabled={submitting}
         />
       </div>
