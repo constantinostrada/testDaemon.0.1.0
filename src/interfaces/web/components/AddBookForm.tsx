@@ -4,7 +4,9 @@
  * AddBookForm Component
  * =====================
  * Controlled form for submitting a new book to the API.
- * On success, redirects to the home page.
+ * Performs client-side validation (required fields, ISBN format, year not in future)
+ * before issuing the request. On success, redirects to the catalog so the
+ * librarian can see the new book in the listing.
  */
 
 import { useState, type FormEvent } from "react";
@@ -27,11 +29,43 @@ const INITIAL_STATE: FormState = {
   year_published: "",
 };
 
+const CURRENT_YEAR = new Date().getFullYear();
+
+function isValidIsbn(raw: string): boolean {
+  const digits = raw.replace(/[-\s]/g, "");
+  return /^\d{10}$/.test(digits) || /^\d{13}$/.test(digits);
+}
+
+function validate(form: FormState, currentYear: number): string[] {
+  const errors: string[] = [];
+  if (!form.title.trim()) errors.push("Title is required.");
+  const authorsList = form.authors
+    .split(",")
+    .map((a) => a.trim())
+    .filter((a) => a.length > 0);
+  if (authorsList.length === 0) errors.push("At least one author is required.");
+  if (!form.isbn.trim()) {
+    errors.push("ISBN is required.");
+  } else if (!isValidIsbn(form.isbn)) {
+    errors.push("ISBN is not valid. Use 10 or 13 digits (hyphens optional).");
+  }
+  if (!form.genre.trim()) errors.push("Genre is required.");
+  if (form.year_published.trim()) {
+    const year = parseInt(form.year_published, 10);
+    if (Number.isNaN(year)) {
+      errors.push("Year published must be a number.");
+    } else if (year > currentYear) {
+      errors.push(`Year published cannot be in the future (max ${currentYear}).`);
+    }
+  }
+  return errors;
+}
+
 export default function AddBookForm(): JSX.Element {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(INITIAL_STATE);
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -42,19 +76,19 @@ export default function AddBookForm(): JSX.Element {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
+    const validationErrors = validate(form, CURRENT_YEAR);
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     setSubmitting(true);
-    setError(null);
+    setErrors([]);
 
     const authorsList = form.authors
       .split(",")
       .map((a) => a.trim())
       .filter((a) => a.length > 0);
-
-    if (authorsList.length === 0) {
-      setError("At least one author is required.");
-      setSubmitting(false);
-      return;
-    }
 
     try {
       await booksApi.add({
@@ -64,14 +98,14 @@ export default function AddBookForm(): JSX.Element {
         genre: form.genre.trim(),
         year_published: form.year_published ? parseInt(form.year_published, 10) : null,
       });
-      router.push("/");
+      router.push("/catalog");
       router.refresh();
     } catch (err) {
-      setError(
+      setErrors([
         err instanceof ApiError
           ? err.message
           : "An unexpected error occurred. Please try again.",
-      );
+      ]);
     } finally {
       setSubmitting(false);
     }
@@ -79,7 +113,19 @@ export default function AddBookForm(): JSX.Element {
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} noValidate>
-      {error && <div className="alert alert-error">{error}</div>}
+      {errors.length > 0 && (
+        <div className="alert alert-error" role="alert" data-testid="form-errors">
+          {errors.length === 1 ? (
+            errors[0]
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+              {errors.map((msg) => (
+                <li key={msg}>{msg}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="form-group">
         <label htmlFor="title" className="form-label">
@@ -92,7 +138,6 @@ export default function AddBookForm(): JSX.Element {
           className="form-input"
           value={form.title}
           onChange={handleChange}
-          required
           maxLength={500}
           placeholder="e.g. The Pragmatic Programmer"
           disabled={submitting}
@@ -110,7 +155,6 @@ export default function AddBookForm(): JSX.Element {
           className="form-input"
           value={form.authors}
           onChange={handleChange}
-          required
           maxLength={300}
           placeholder="e.g. David Thomas, Andrew Hunt"
           disabled={submitting}
@@ -129,7 +173,6 @@ export default function AddBookForm(): JSX.Element {
           className="form-input"
           value={form.isbn}
           onChange={handleChange}
-          required
           maxLength={17}
           placeholder="e.g. 978-0-13-468599-1"
           disabled={submitting}
@@ -148,7 +191,6 @@ export default function AddBookForm(): JSX.Element {
           className="form-input"
           value={form.genre}
           onChange={handleChange}
-          required
           maxLength={100}
           placeholder="e.g. Software"
           disabled={submitting}
@@ -167,7 +209,7 @@ export default function AddBookForm(): JSX.Element {
           value={form.year_published}
           onChange={handleChange}
           min={1000}
-          max={2100}
+          max={CURRENT_YEAR}
           placeholder="e.g. 2019"
           disabled={submitting}
         />
@@ -182,7 +224,7 @@ export default function AddBookForm(): JSX.Element {
         >
           {submitting ? "Adding…" : "Add to Library"}
         </button>
-        <a href="/" className="btn btn-ghost">
+        <a href="/catalog" className="btn btn-ghost">
           Cancel
         </a>
       </div>
