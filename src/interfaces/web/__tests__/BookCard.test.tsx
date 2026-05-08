@@ -9,11 +9,11 @@ import type { Book } from "@/lib/api-client";
 const mockBook: Book = {
   id: "abc-123",
   title: "Clean Code",
-  author: "Robert C. Martin",
+  authors: ["Robert C. Martin"],
   isbn: "9780132350884",
+  genre: "Software",
   status: "unread",
   year_published: 2008,
-  description: "A handbook of agile software craftsmanship.",
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",
 };

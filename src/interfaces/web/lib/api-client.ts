@@ -28,11 +28,11 @@ export type BookStatus = "unread" | "reading" | "read";
 export interface Book {
   id: string;
   title: string;
-  author: string;
+  authors: string[];
   isbn: string;
+  genre: string;
   status: BookStatus;
   year_published: number | null;
-  description: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,10 +47,18 @@ export interface PaginatedBooks {
 
 export interface AddBookPayload {
   title: string;
-  author: string;
+  authors: string[];
   isbn: string;
+  genre: string;
   year_published?: number | null;
-  description?: string | null;
+}
+
+export interface SearchBooksParams {
+  title?: string;
+  author?: string;
+  year?: number;
+  limit?: number;
+  offset?: number;
 }
 
 export interface UpdateBookStatusPayload {
@@ -126,6 +134,21 @@ export const booksApi = {
     if (params?.offset !== undefined) query.set("offset", String(params.offset));
     const qs = query.toString() ? `?${query.toString()}` : "";
     return request<PaginatedBooks>(`/api/v1/books${qs}`);
+  },
+
+  /**
+   * Search the catalogue. All criteria are AND-combined; missing ones ignored.
+   * Empty result returns an empty list (200), not an error.
+   */
+  search(params: SearchBooksParams): Promise<PaginatedBooks> {
+    const query = new URLSearchParams();
+    if (params.title) query.set("title", params.title);
+    if (params.author) query.set("author", params.author);
+    if (params.year !== undefined) query.set("year", String(params.year));
+    if (params.limit !== undefined) query.set("limit", String(params.limit));
+    if (params.offset !== undefined) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<PaginatedBooks>(`/api/v1/books/search${qs}`);
   },
 
   /**

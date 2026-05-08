@@ -1,15 +1,14 @@
-import type { Config } from "jest";
-import nextJest from "next/jest.js";
+const nextJest = require("next/jest.js");
 
 const createJestConfig = nextJest({
-  // Path to your Next.js app, used to load next.config.mjs and .env files in test environment
   dir: "./",
 });
 
-const config: Config = {
+/** @type {import('jest').Config} */
+const config = {
   coverageProvider: "v8",
   testEnvironment: "jsdom",
-  setupFilesAfterFramework: ["<rootDir>/jest.setup.ts"],
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
@@ -23,4 +22,4 @@ const config: Config = {
   ],
 };
 
-export default createJestConfig(config);
+module.exports = createJestConfig(config);

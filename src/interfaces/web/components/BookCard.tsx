@@ -53,35 +53,19 @@ export default function BookCard({ book, onDelete, onStatusChange }: BookCardPro
         )}
       </div>
 
-      {/* Title & Author */}
+      {/* Title & Authors */}
       <div>
         <h3 style={{ fontWeight: 700, fontSize: "1rem", lineHeight: 1.3 }}>{book.title}</h3>
         <p className="text-muted text-sm" style={{ marginTop: "0.2rem" }}>
-          by {book.author}
+          by {book.authors.join(", ")}
         </p>
       </div>
 
-      {/* ISBN */}
-      <p className="text-muted text-sm">
+      {/* ISBN + Genre */}
+      <p className="text-muted text-sm" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         <code style={{ fontSize: "0.8rem" }}>ISBN {book.isbn}</code>
+        <span aria-label="genre">· {book.genre}</span>
       </p>
-
-      {/* Description */}
-      {book.description && (
-        <p
-          className="text-sm"
-          style={{
-            color: "#57534e",
-            lineHeight: 1.5,
-            display: "-webkit-box",
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-          }}
-        >
-          {book.description}
-        </p>
-      )}
 
       {/* Actions */}
       <div className="flex gap-2" style={{ marginTop: "auto", paddingTop: "0.5rem" }}>
