@@ -29,12 +29,14 @@ from src.application.dtos.book_dtos import (
     DeleteBookInputDTO,
     GetBookInputDTO,
     ListBooksInputDTO,
+    SearchBooksInputDTO,
     UpdateBookStatusInputDTO,
 )
 from src.application.use_cases.add_book import AddBookUseCase
 from src.application.use_cases.delete_book import DeleteBookUseCase
 from src.application.use_cases.get_book import GetBookUseCase
 from src.application.use_cases.list_books import ListBooksUseCase
+from src.application.use_cases.search_books import SearchBooksUseCase
 from src.application.use_cases.update_book_status import UpdateBookStatusUseCase
 from src.domain.exceptions.domain_exceptions import (
     BookNotFoundError,
@@ -47,6 +49,7 @@ from src.interfaces.api.dependencies import (
     provide_delete_book_use_case,
     provide_get_book_use_case,
     provide_list_books_use_case,
+    provide_search_books_use_case,
     provide_update_book_status_use_case,
 )
 from src.interfaces.api.schemas import (
@@ -139,6 +142,66 @@ async def list_books(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/books/search — Search the catalogue
+#
+# IMPORTANT: this route is declared BEFORE `GET /{book_id}` so that the
+# literal path segment `search` is not consumed by the `{book_id}` matcher.
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/search",
+    response_model=PaginatedBooksResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Search the catalogue",
+    description=(
+        "Search the catalogue by combining optional criteria. All provided "
+        "criteria are combined with AND semantics; missing criteria are "
+        "ignored. If no books match, returns 200 with an empty list. "
+        "\n\n"
+        "**Matching rules** (decision register, see "
+        "`docs/decisions/0001-search-matching.md`):\n"
+        "- `title`:  case-insensitive **substring** match against the title.\n"
+        "- `author`: case-insensitive **substring** match against any of "
+        "the book's authors.\n"
+        "- `year`:   **exact** integer match against the publication year."
+    ),
+)
+async def search_books(
+    use_case: Annotated[SearchBooksUseCase, Depends(provide_search_books_use_case)],
+    title: Annotated[
+        str | None,
+        Query(description="Substring to look for in the title (case-insensitive)."),
+    ] = None,
+    author: Annotated[
+        str | None,
+        Query(description="Substring to look for in any author (case-insensitive)."),
+    ] = None,
+    year: Annotated[
+        int | None,
+        Query(description="Exact publication year.", ge=1000, le=2100),
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=200, description="Page size")] = 50,
+    offset: Annotated[int, Query(ge=0, description="Page offset")] = 0,
+) -> PaginatedBooksResponse:
+    dto = SearchBooksInputDTO(
+        title_query=title,
+        author_query=author,
+        year_published=year,
+        limit=limit,
+        offset=offset,
+    )
+    result = await use_case.execute(dto)
+    return PaginatedBooksResponse(
+        books=[BookResponse(**b.__dict__) for b in result.books],
+        total=result.total,
+        limit=result.limit,
+        offset=result.offset,
+        has_more=result.has_more,
+    )
 
 
 # ---------------------------------------------------------------------------

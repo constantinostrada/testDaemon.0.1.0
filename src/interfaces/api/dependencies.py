@@ -25,6 +25,7 @@ from src.application.use_cases.add_book import AddBookUseCase
 from src.application.use_cases.delete_book import DeleteBookUseCase
 from src.application.use_cases.get_book import GetBookUseCase
 from src.application.use_cases.list_books import ListBooksUseCase
+from src.application.use_cases.search_books import SearchBooksUseCase
 from src.application.use_cases.update_book_status import UpdateBookStatusUseCase
 from src.domain.repositories.book_repository import BookRepository
 from src.infrastructure.config.settings import Settings, get_settings
@@ -88,3 +89,9 @@ def provide_delete_book_use_case(
     repo: Annotated[BookRepository, Depends(provide_book_repository)],
 ) -> DeleteBookUseCase:
     return DeleteBookUseCase(book_repository=repo)
+
+
+def provide_search_books_use_case(
+    repo: Annotated[BookRepository, Depends(provide_book_repository)],
+) -> SearchBooksUseCase:
+    return SearchBooksUseCase(book_repository=repo)

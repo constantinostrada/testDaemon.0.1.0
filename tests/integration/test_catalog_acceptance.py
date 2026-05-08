@@ -153,3 +153,134 @@ class TestCatalogAcceptance:
         detail = str(body.get("detail", "")).lower()
         assert detail  # non-empty, human-readable message
         assert "book" in detail or "not found" in detail or missing_id in detail
+
+
+# ---------------------------------------------------------------------------
+# Search acceptance tests (task: "Búsqueda en el catálogo")
+#
+# Maps to the prose acceptance criteria:
+#   - Search by word in title returns matching books.
+#   - Search by author returns matching books.
+#   - Search by year returns matching books.
+#   - Combining criteria applies AND.
+#   - No matches → valid empty response (not an error).
+#   - Decision substring-vs-exact is documented in an accessible place.
+# ---------------------------------------------------------------------------
+
+
+class TestCatalogSearchAcceptance:
+    async def _seed(self, client: AsyncClient) -> None:
+        for payload in (CLEAN_CODE, DESIGN_PATTERNS):
+            r = await client.post("/api/v1/books", json=payload)
+            assert r.status_code == 201
+
+    async def test_search_by_title_keyword(self, client: AsyncClient) -> None:
+        """AC: a keyword in the title returns the matching books."""
+        await self._seed(client)
+
+        # Case-insensitive substring: "clean" must find "Clean Code".
+        response = await client.get("/api/v1/books/search", params={"title": "clean"})
+        assert response.status_code == 200
+        data = response.json()
+        isbns = {b["isbn"] for b in data["books"]}
+        assert CLEAN_CODE["isbn"] in isbns
+        assert DESIGN_PATTERNS["isbn"] not in isbns
+        assert data["total"] == 1
+
+    async def test_search_by_author(self, client: AsyncClient) -> None:
+        """AC: a search by author returns the matching books."""
+        await self._seed(client)
+
+        # Match a single author of a multi-author book.
+        response = await client.get(
+            "/api/v1/books/search", params={"author": "Gamma"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        isbns = {b["isbn"] for b in data["books"]}
+        assert isbns == {DESIGN_PATTERNS["isbn"]}
+        assert data["total"] == 1
+
+        # And case-insensitive substring on a single-author book.
+        response = await client.get(
+            "/api/v1/books/search", params={"author": "martin"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        isbns = {b["isbn"] for b in data["books"]}
+        assert isbns == {CLEAN_CODE["isbn"]}
+
+    async def test_search_by_year(self, client: AsyncClient) -> None:
+        """AC: a search by year returns the matching books."""
+        await self._seed(client)
+
+        response = await client.get("/api/v1/books/search", params={"year": 2008})
+        assert response.status_code == 200
+        data = response.json()
+        isbns = {b["isbn"] for b in data["books"]}
+        assert isbns == {CLEAN_CODE["isbn"]}
+        assert data["total"] == 1
+
+    async def test_search_combines_criteria_with_and(
+        self, client: AsyncClient
+    ) -> None:
+        """AC: combining criteria applies AND — all of them must match."""
+        await self._seed(client)
+
+        # Title AND author both match Clean Code → 1 result.
+        response = await client.get(
+            "/api/v1/books/search",
+            params={"title": "code", "author": "Martin"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        isbns = {b["isbn"] for b in data["books"]}
+        assert isbns == {CLEAN_CODE["isbn"]}
+
+        # Title matches Clean Code but year is wrong → 0 results.
+        response = await client.get(
+            "/api/v1/books/search",
+            params={"title": "clean", "year": 1994},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["books"] == []
+
+    async def test_search_with_no_matches_returns_valid_empty_response(
+        self, client: AsyncClient
+    ) -> None:
+        """AC: when nothing matches, the response is a valid empty list (not an error)."""
+        await self._seed(client)
+
+        response = await client.get(
+            "/api/v1/books/search", params={"title": "definitely-not-in-any-title"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["books"] == []
+        assert data["total"] == 0
+        assert data["has_more"] is False
+
+    async def test_search_decision_is_documented_and_discoverable(self) -> None:
+        """AC: the substring-vs-exact decision is documented somewhere accessible.
+
+        The decision must be discoverable by the team. We assert it is recorded
+        in the ADR file, and that BOTH textual rules ('substring' for title and
+        author) and the year rule ('exact') are explicitly stated.
+        """
+        from pathlib import Path
+
+        adr_path = (
+            Path(__file__).resolve().parents[2]
+            / "docs"
+            / "decisions"
+            / "0001-search-matching.md"
+        )
+        assert adr_path.exists(), f"Expected ADR at {adr_path}"
+        text = adr_path.read_text(encoding="utf-8").lower()
+        assert "substring" in text
+        assert "exact" in text
+        assert "title" in text
+        assert "author" in text
+        assert "year" in text

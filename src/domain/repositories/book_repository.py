@@ -86,3 +86,43 @@ class BookRepository(ABC):
     async def count(self, *, status_filter: BookStatus | None = None) -> int:
         """Return the total number of books, optionally filtered by status."""
         ...
+
+    @abstractmethod
+    async def search(
+        self,
+        *,
+        title_query: str | None = None,
+        author_query: str | None = None,
+        year_published: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Book], int]:
+        """
+        Search the catalogue by combining optional criteria.
+
+        All non-None criteria are combined with AND semantics. The matching
+        rules are a contract of this interface (see ADR
+        `docs/decisions/0001-search-matching.md`):
+
+          - title_query:    case-insensitive substring match against the title.
+          - author_query:   case-insensitive substring match against ANY of
+                            the book's authors.
+          - year_published: exact integer match against the publication year.
+
+        When every criterion is None this returns the same set as `list_all`
+        (i.e. the whole catalogue) so callers can use a single endpoint for
+        unfiltered browsing as well.
+
+        Args:
+            title_query:    text to look for inside the book title.
+            author_query:   text to look for inside any author name.
+            year_published: required exact publication year.
+            limit:  maximum number of books to return (default 50).
+            offset: number of books to skip for pagination (default 0).
+
+        Returns:
+            A tuple `(books, total)` where `books` is the requested page
+            (already sliced) and `total` is the count of books matching the
+            criteria across the entire catalogue (before pagination).
+        """
+        ...
