@@ -20,6 +20,7 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
             <h1 className="site-title">📚 Mini-Library</h1>
             <nav className="site-nav">
               <a href="/">My Books</a>
+              <a href="/catalog">Catalog</a>
               <a href="/add">Add Book</a>
             </nav>
           </div>
