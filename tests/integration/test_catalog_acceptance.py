@@ -121,3 +121,35 @@ class TestCatalogAcceptance:
         multi = await client.post("/api/v1/books", json=DESIGN_PATTERNS)
         assert multi.status_code == 201
         assert multi.json()["authors"] == DESIGN_PATTERNS["authors"]
+
+    async def test_delete_book_removes_from_catalogue(
+        self, client: AsyncClient
+    ) -> None:
+        """AC: a book can be deleted and is then absent from the catalogue."""
+        created = await client.post("/api/v1/books", json=CLEAN_CODE)
+        assert created.status_code == 201
+        book_id = created.json()["id"]
+
+        deleted = await client.delete(f"/api/v1/books/{book_id}")
+        assert deleted.status_code == 204
+
+        fetched = await client.get(f"/api/v1/books/{book_id}")
+        assert fetched.status_code == 404
+
+        listing = await client.get("/api/v1/books")
+        assert listing.status_code == 200
+        ids_in_listing = {b["id"] for b in listing.json()["books"]}
+        assert book_id not in ids_in_listing
+
+    async def test_get_nonexistent_book_returns_404_with_clear_error(
+        self, client: AsyncClient
+    ) -> None:
+        """AC: requesting a book that does not exist returns 404 with detail."""
+        # Well-formed UUID that has never been created.
+        missing_id = "00000000-0000-0000-0000-000000000000"
+        response = await client.get(f"/api/v1/books/{missing_id}")
+        assert response.status_code == 404
+        body = response.json()
+        detail = str(body.get("detail", "")).lower()
+        assert detail  # non-empty, human-readable message
+        assert "book" in detail or "not found" in detail or missing_id in detail
